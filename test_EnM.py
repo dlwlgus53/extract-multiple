@@ -4,7 +4,7 @@ import datetime
 import argparse
 from tqdm import tqdm
 from knockknock import email_sender
-from test import get_predict, evaluate
+from test_utils import get_predict, evaluate
 from torch.utils.data import DataLoader
 from extract.dataset import Dataset as Dataset_e
 from multiple.dataset import Dataset as Dataset_m
@@ -44,10 +44,10 @@ def main():
     model_m = AutoModelForMultipleChoice.from_pretrained(args.base_trained_model)
     
     test_e_dataset = Dataset_e(args.test_path, 'test', tokenizer, False)
-    test_e_loader = DataLoader(test_e_dataset, args.batch_size, shuffle=True)
+    test_e_loader = DataLoader(test_e_dataset, args.batch_size, shuffle=False)
     
     test_m_dataset = Dataset_m(args.test_path, 'test', tokenizer, False)
-    test_m_loader = DataLoader(test_m_dataset, args.batch_size, shuffle=True)
+    test_m_loader = DataLoader(test_m_dataset, args.batch_size, shuffle=False)
     
     log_file = open(args.log_file, 'w')
     device = torch.device(f'cuda:{args.gpu_number}' if torch.cuda.is_available() else 'cpu')
@@ -65,12 +65,13 @@ def main():
     model_m.to(device)
     
     
-    belief_e = get_predict(model_e, test_e_loader, device, tokenizer, log_file)
-    belief_m = get_predict(model_m, test_m_loader, device, tokenizer, log_file)
+    belief_e = get_predict(model_e, test_e_loader, device, tokenizer, 'extract', log_file)
+    belief_m = get_predict(model_m, test_m_loader, device, tokenizer, 'multiple', log_file)
     
-    joint_goal_acc, slot_acc = evaluate(args.test_path, belief_e, belief_m)
+    joint_goal_acc, slot_acc, final_file = evaluate(args.test_path, belief_e, belief_m)
     
-  
+    # save the final_file
+    
     return {'joint_goal_acc' : joint_goal_acc, 'slot_acc' : slot_acc}
 
     
