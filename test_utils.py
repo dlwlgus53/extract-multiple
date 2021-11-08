@@ -5,44 +5,60 @@ import nltk
 import torch
 from tqdm import tqdm
 from collections import defaultdict
+import ontology
+import editdistance
 
-value_list_path = '../data/MultiWOZ_2.1/value_list.json'
+value_list_path = './data/MultiWOZ_2.1/value_list.json'
 
 
-def evaluate(collect_answer, belief_e, belief_m):
-    # joint goal accuracy
+
+def _attentionTo3(belief):
+    attention = ['attraction','hotel','restaurant']
+    
+    belief = {k:belief[k] for k in belief if k.split('-')[0] in attention}
+    return belief
+def evaluate(answer_path, extract_belief, multiple_belief):
+    final_belief =  defaultdict(lambda: defaultdict(dict))
+    
+    answer = json.load(open(answer_path, "r"))
     
     joint_goal_acc = 0
     joint_goal_count = 0
     
-    
     slot_acc = 0
     slot_count =0 
     
-    for dial_key in collect_predict.keys():
-        ans_dial, pred_dial = collect_answer[dial_key]['log'], collect_predict[dial_key]
+    for dial_key in answer.keys():
+        ans_dial, extract_dial, multiple_dial = answer[dial_key]['log'], extract_belief[dial_key], multiple_belief[dial_key]
         current_belief = {}
-        pdb.set_trace()
-        for turn_key in pred_dial.keys():
-            ans_belief , pred_belief = ans_dial[turn_key]['belief'], pred_dial[turn_key]
-            
+        for turn_key in range(len(ans_dial)):
+            ans_turn_belief, extract_turn_belief, multiple_turn_belief = ans_dial[turn_key]['belief'], extract_dial[turn_key], multiple_dial[turn_key]
+            ans_turn_belief = _attentionTo3(ans_turn_belief)
+
             joint_goal_count +=1
-            slot_count += len(ans_belief)
-            diff = ans_belief - pred_belief
+            slot_count += len(ans_turn_belief)
             
-            if len(diff) == 0: # 전부 다 맞은 경우
+            merged = _attentionTo3({**extract_turn_belief,**multiple_turn_belief})
+            current_belief.update(merged)
+            
+            shared_items = {schema : ans_turn_belief[schema] for schema in ans_turn_belief if schema in current_belief and ans_turn_belief[schema] == current_belief[schema]}
+            
+            if len(ans_turn_belief) == len(shared_items): # 전부 다 맞은 경우
                 joint_goal_acc +=1
-                slot_acc += len(ans_belief)
+                slot_acc += len(ans_turn_belief)
             
             else: 
-                slot_acc += (len(ans_belief) - len(diff))
+                slot_acc += len(shared_items)
+        
+            final_belief[dial_key][turn_key] = current_belief
                 
-    return joint_goal_acc/joint_goal_count, slot_acc/slot_count, final_file
+    return joint_goal_acc/joint_goal_count, slot_acc/slot_count, final_belief
 
 
 def edit_distance_compenstae(schema, pred_text,value_list):
-    candidate = value_list[schema]
-    candidate_score = [nltk.edit_distance(pred_text, value) for value in candidate ]
+    candidate = value_list[schema] + ['[CLS]']
+    
+    candidate_score = [editdistance.eval(pred_text, value) for value in candidate ]
     index  = candidate_score.index(min(candidate_score))
     return candidate[index]
     
@@ -66,7 +82,7 @@ def get_predict(model, test_loader, device, tokenizer, type, log_file):
             if type == 'extract':
                 start_positions = batch['start_positions'].to(device)
                 end_positions = batch['end_positions'].to(device)
-            else:
+            else: # multiple
                 labels =  batch['labels'].to(device) # TODO
                 token_type_ids = batch['token_type_ids'].to(device)
             
@@ -74,27 +90,35 @@ def get_predict(model, test_loader, device, tokenizer, type, log_file):
                 outputs = model(input_ids = input_ids, attention_mask = attention_mask, start_positions = start_positions, end_positions = end_positions)
                 pred_start_positions = torch.argmax(outputs['start_logits'], dim=1).to('cpu')
                 pred_end_positions = torch.argmax(outputs['end_logits'], dim=1).to('cpu')
-            else:
+            else: # multiple
                 outputs = model(input_ids = input_ids, token_type_ids = token_type_ids, attention_mask=attention_mask, labels = labels)
                 pred_index = torch.max(outputs[1], axis = 1).indices.to('cpu').tolist()
 
 
-            for b in range(len(batch)):
+            for b in range(len(dial_id)): # refactor
                 
                 if type == 'extract':
                     ans_text = tokenizer.convert_tokens_to_string(tokenizer.convert_ids_to_tokens(input_ids[b][start_positions[b]:end_positions[b]+1]))
                     pred_text = tokenizer.convert_tokens_to_string(tokenizer.convert_ids_to_tokens(input_ids[b][pred_start_positions[b]:pred_end_positions[b]+1]))
                     pred_text = edit_distance_compenstae(batch['schema'][b], pred_text,value_list)
-                    collect_predict[dial_id[b]][turn_id[b]][schema[b]] = pred_text
+                    if pred_text != '[CLS]':
+                        collect_predict[dial_id[b]][turn_id[b]][schema[b]] = pred_text
                     
                     if iter%100 ==0:
                         log_file.write(f"ans text : {ans_text}\n pred_text : {pred_text}\n")        
                     
                     
                 else:
-                    ans_text = tokenizer.convert_tokens_to_string(tokenizer.convert_ids_to_tokens(input_ids[b][start_positions[b]:end_positions[b]+1]))
-                    pred_text = tokenizer.convert_tokens_to_string(tokenizer.convert_ids_to_tokens(input_ids[b][pred_start_positions[b]:pred_end_positions[b]+1]))
-                    pred_text = edit_distance_compenstae(batch['schema'][b], pred_text,value_list) # 번호 순서에 맞게!
+                    
+                    index = pred_index[b]
+                    label = labels[b]
+                    ans_text = ontology.QA[schema[b]]['values'][label]
+                    try:
+                        pred_text = ontology.QA[schema[b]]['values'][index]
+                    except IndexError as e:
+                        pred_text = ontology.QA[schema[b]]['values'][-1]
+                        
+                        
                     collect_predict[dial_id[b]][turn_id[b]][schema[b]] = pred_text
                     
                     if iter%100 ==0:

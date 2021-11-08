@@ -2,7 +2,7 @@ import pdb
 import json
 import torch
 import pickle
-import ontology
+from . import ontology
 from tqdm import tqdm
 from transformers import  AutoTokenizer
 # here, squad means squad2

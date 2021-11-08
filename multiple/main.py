@@ -27,7 +27,7 @@ parser.add_argument('--debugging' , type = bool,  default = False, help = "Don't
 parser.add_argument('--log_file' , type = str,  default = f'logs/log_{now_time}.txt', help = 'Is this debuggin mode?')
 parser.add_argument('--dev_path' ,  type = str,  default = '../data/MultiWOZ_2.1/dev_data.json')
 parser.add_argument('--train_path' , type = str,  default = '../data/MultiWOZ_2.1/train_data.json')
-parser.add_argument('--max_length' , type = int,  default = 512, help = 'max length')
+# parser.add_argument('--max_length' , type = int,  default = 512, help = 'max length')
 parser.add_argument('--max_options' , type = int,  default = 9, help = 'max number of options')
 parser.add_argument('--do_train' , default = True, help = 'do train or not', action=argparse.BooleanOptionalAction)
 
@@ -52,8 +52,8 @@ def main():
     
     tokenizer = AutoTokenizer.from_pretrained(args.base_trained_model, use_fast=True)
     model = AutoModelForMultipleChoice.from_pretrained(args.base_trained_model)
-    #train_dataset =Dataset(args.train_path, 'train', tokenizer, args.max_length, args.max_options, debug=True)
-    val_dataset = Dataset(args.dev_path, 'val', tokenizer, args.max_length, args.max_options, debug=False)
+    #train_dataset =Dataset(args.train_path, 'train', tokenizer,  args.max_options, debug=True)
+    val_dataset = Dataset(args.dev_path, 'val', tokenizer,  args.max_options, debug=False)
 
     
     #train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True)

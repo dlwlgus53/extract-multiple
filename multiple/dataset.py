@@ -2,7 +2,7 @@ import pdb
 import json
 import torch
 import pickle
-import ontology
+from. import ontology
 from tqdm import tqdm
 from transformers import AutoTokenizer
 from torch.utils.data import DataLoader
@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 print("Load Tokenizer")
 
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, data_path, type, tokenizer, max_length, max_options, debug=True):
+    def __init__(self, data_path, type, tokenizer, max_options, debug=True):
         self.tokenizer = tokenizer
         self.max_length = self.tokenizer.model_max_length
         self.max_options = max_options
@@ -21,7 +21,7 @@ class Dataset(torch.utils.data.Dataset):
                 0/0
             else:
                 print("Load processed data")
-                with open(f'data/preprocessed_{type}_{max_length}_{max_options}.pickle', 'rb') as f:
+                with open(f'data/preprocessed_{type}_{self.max_length}_{max_options}.pickle', 'rb') as f:
                     encodings = pickle.load(f)
         except:
             print("preprocessing data...")
@@ -46,7 +46,7 @@ class Dataset(torch.utils.data.Dataset):
                     == len(dial_id) == len(turn_id) == len(schema)
                     
             ## save preprocesse data
-            with open(f'data/preprocessed_{type}_{max_length}_{max_options}.pickle', 'wb') as f:
+            with open(f'data/preprocessed_{type}_{self.max_length}_{max_options}.pickle', 'wb') as f:
                 pickle.dump(encodings, f, pickle.HIGHEST_PROTOCOL)
 
         self.encodings = encodings
@@ -225,7 +225,7 @@ if __name__ == '__main__':
     data_path = '../data/MultiWOZ_2.1/dev_data.json'
     max_length = 512
     max_option = 9
-    dd = Dataset(data_path,'val', tokenizer, max_length, max_option, debug=False)
+    dd = Dataset(data_path,'val', tokenizer,  max_option, debug=False)
     pdb.set_trace()
     for i in range(10):
         print(tokenizer.convert_tokens_to_string(tokenizer.convert_ids_to_tokens(dd[i]['input_ids'])))
