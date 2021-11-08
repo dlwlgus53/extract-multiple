@@ -1,8 +1,8 @@
 logs/
 model/
 runs/
-
 data/
+*.json
 
 # help!
 
